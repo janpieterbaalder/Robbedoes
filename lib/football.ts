@@ -1,4 +1,5 @@
 import type { Match, Place } from "./types";
+import { localDateIn } from "./time";
 export function distanceKm(
   a: Pick<Place, "lat" | "lon">,
   b: Pick<Place, "lat" | "lon">,
@@ -32,12 +33,7 @@ export function addDays(value: string, n: number) {
   return d.toISOString().slice(0, 10);
 }
 export function inDateRange(match: Match, start: string, end: string) {
-  const day = new Intl.DateTimeFormat("en-CA", {
-    timeZone: match.timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(match.kickoff));
+  const day = localDateIn(match.kickoff, match.timezone);
   return day >= start && day <= end;
 }
 export function searchMatches(
