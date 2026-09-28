@@ -42,6 +42,8 @@ Met `FOOTBALL_DATA_API_KEY` (gratis account bij football-data.org) komt de Champ
 - **OpenLigaDB**: communitygegevens voor de drie Duitse profcompetities, met UTC-tijden.
 - **football-data.org v4** (optioneel): verzoeken in vaste vensters van zeven dagen, zodat gebruikers dezelfde gecachte antwoorden delen en de limiet van het gratis abonnement (10 verzoeken per minuut) buiten zicht blijft.
 
+`/api/status` controleert alle bronnen live, inclusief of de football-data.org-sleutel werkt (`ok`, `error` met HTTP-status en uitleg, of `not_configured`). Open bijvoorbeeld `https://robbedoes-alpha.vercel.app/api/status`.
+
 Per competitie probeert de server de bronnen op volgorde; valt er één uit, dan neemt de volgende het over. Competities zonder bereikbare bron worden in de app gemeld. De server haalt alleen competities op met een gedekt stadion binnen de zoekstraal. Antwoorden worden een kwartier (OpenLigaDB, football-data.org) of een uur (openfootball) gecachet; bij een storing van de bron worden gegevens tot een dag oud gebruikt. Tijdstippen moeten altijd bij de club worden bevestigd.
 
 ### Stadioncatalogus
