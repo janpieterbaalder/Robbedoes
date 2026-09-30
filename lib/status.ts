@@ -1,3 +1,4 @@
+import { espnUrl } from "./espn";
 import { seasonOf } from "./leagues";
 import { openfootballUrl, openLigaDbUrl } from "./sources";
 
@@ -68,6 +69,11 @@ export async function checkSources(
   today = new Date().toISOString().slice(0, 10),
 ): Promise<SourceCheck[]> {
   const season = seasonOf(today);
+  const monthName = new Date(today + "T12:00:00Z").toLocaleDateString("nl-NL", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
   return Promise.all([
     probe(
       fetcher,
@@ -84,6 +90,14 @@ export async function checkSources(
       {},
       (d) => `Bundesliga ${season.label}: ${count(d)} wedstrijden.`,
     ),
+    probe(
+      fetcher,
+      "ESPN",
+      espnUrl("ned.2", today.slice(0, 7).replace("-", "")),
+      {},
+      (d) =>
+        `Keuken Kampioen Divisie, ${monthName}: ${count((d as { events?: unknown })?.events)} wedstrijden.`,
+    ),
     footballDataKey
       ? probe(
           fetcher,
@@ -97,7 +111,7 @@ export async function checkSources(
           source: "football-data.org",
           state: "not_configured",
           detail:
-            "Geen FOOTBALL_DATA_API_KEY ingesteld. Alleen nodig voor de Champions League.",
+            "Geen FOOTBALL_DATA_API_KEY ingesteld. Alleen nodig als reservebron.",
         }),
   ]);
 }

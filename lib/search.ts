@@ -1,6 +1,7 @@
 import { CLUBS } from "./clubs";
 import { findClub } from "./club-lookup";
 import type { FetchJson } from "./cache";
+import { espnMonths, espnUrl, limit, parseEspn } from "./espn";
 import { distanceKm, inDateRange } from "./football";
 import { CUPS, LEAGUES, seasonOf, type League } from "./leagues";
 import {
@@ -16,6 +17,7 @@ import {
 } from "./sources";
 import { localDateIn, zonedTimeToUtc } from "./time";
 import type { Match, MatchResponse } from "./types";
+import { VENUES, venueById, type Venue } from "./venues";
 
 export type SearchInput = {
   lat: number;
@@ -24,15 +26,42 @@ export type SearchInput = {
   start: string;
   end: string;
 };
-export type SearchDeps = { fetchJson: FetchJson; footballDataKey?: string };
+export type SearchDeps = {
+  fetchJson: FetchJson;
+  footballDataKey?: string;
+  /** Stadium table; lib/venues.ts unless a test supplies its own. */
+  venues?: readonly Venue[];
+};
 
 type Feed = { source: SourceName; load: () => Promise<Fixture[]> };
+
+// ESPN accepts bursts, but a search never needs more than a few requests at once.
+const espnSlot = limit(4);
 
 const hasClubWithin = (countries: readonly string[], point: SearchInput) =>
   CLUBS.some(
     (c) =>
       countries.includes(c.country) && distanceKm(point, c) <= point.radius,
   );
+const hasVenueWithin = (
+  venues: readonly Venue[],
+  slug: string,
+  point: SearchInput,
+) =>
+  venues.some(
+    (v) =>
+      v.competitions.includes(slug) && distanceKm(point, v) <= point.radius,
+  );
+
+/** Leagues with an open feed are placed by the club catalogue, the others by stadium. */
+const isRelevant = (
+  league: League,
+  point: SearchInput,
+  venues: readonly Venue[],
+) =>
+  league.openfootball || league.openLigaDb
+    ? hasClubWithin(league.countries, point)
+    : !!league.espn && hasVenueWithin(venues, league.espn, point);
 
 function seasons(input: SearchInput) {
   const list = [seasonOf(input.start), seasonOf(input.end)];
@@ -98,7 +127,23 @@ function feedsFor(
       source: "football-data.org",
       load: () => loadFootballData([league], input, deps),
     });
-  return feeds;
+  if (!league.espn) return feeds;
+  const slug = league.espn;
+  const espn: Feed = {
+    source: "ESPN",
+    load: async () => {
+      const pages = await Promise.all(
+        espnMonths(input.start, input.end).map((month) =>
+          espnSlot(() =>
+            fetchJson(espnUrl(slug, month), { ttlSeconds: 21600 }),
+          ),
+        ),
+      );
+      return pages.flatMap((page) => parseEspn(page, league));
+    },
+  };
+  // Cups: ESPN names the stadium of every club; football-data.org only knows catalogue clubs.
+  return league.countries.length ? [...feeds, espn] : [espn, ...feeds];
 }
 
 async function loadFootballData(
@@ -134,7 +179,39 @@ async function loadLeague(
   return null;
 }
 
-function toMatch(f: Fixture): Match | null {
+/** A match at a stadium named by the provider. Catalogue clubs keep their name, colour and website. */
+function atVenue(f: Fixture, venue: Venue | undefined): Match | null {
+  if (!venue) return null;
+  // Whole names only: ESPN leagues include many clubs outside the catalogue.
+  const home = findClub(f.home, f.countries, true),
+    away = findClub(f.away, f.countries, true);
+  const awayColor = away?.color ?? f.awayColor;
+  return {
+    id: f.id,
+    home: home?.name ?? f.home,
+    homeId: home?.id ?? `espn-${f.homeRef ?? f.home}`,
+    away: away?.name ?? f.away,
+    kickoff: f.utc ?? zonedTimeToUtc(f.date, "12:00", venue.timezone),
+    ...(f.utc ? {} : { timeTbc: true }),
+    league: f.leagueName,
+    country: venue.country,
+    stadium: venue.name,
+    city: venue.city,
+    lat: venue.lat,
+    lon: venue.lon,
+    ...(venue.approx ? { approx: true } : {}),
+    timezone: venue.timezone,
+    color: home?.color ?? f.homeColor ?? "#d7d7d7",
+    ...(awayColor ? { awayColor } : {}),
+    ticketUrl: home?.website ?? null,
+    demand: "unknown",
+    provisional: f.provisional,
+    source: f.source,
+  };
+}
+
+function toMatch(f: Fixture, venues: Map<string, Venue>): Match | null {
+  if (f.venue) return atVenue(f, venues.get(f.venue.id));
   const home = findClub(f.home, f.countries);
   if (!home) return null;
   const away = findClub(f.away, f.countries);
@@ -165,14 +242,20 @@ export async function searchEurope(
   input: SearchInput,
   deps: SearchDeps,
 ): Promise<MatchResponse> {
-  const leagues = LEAGUES.filter((l) => hasClubWithin(l.countries, input));
-  const cups = deps.footballDataKey && leagues.length ? CUPS : [];
+  const venues = deps.venues ?? VENUES;
+  const byId =
+    venues === VENUES ? venueById : new Map(venues.map((v) => [v.id, v]));
+  const leagues = LEAGUES.filter((l) => isRelevant(l, input, venues));
+  const cups = CUPS.filter((c) => isRelevant(c, input, venues));
   const updatedAt = new Date().toISOString();
 
-  if (!leagues.length) {
-    const nearest = CLUBS.map((c) => ({ c, d: distanceKm(input, c) })).sort(
-      (a, b) => a.d - b.d,
-    )[0];
+  if (!leagues.length && !cups.length) {
+    const places = [...CLUBS, ...venues].map((p) => ({
+      name: p.name,
+      city: p.city,
+      d: distanceKm(input, p),
+    }));
+    const nearest = places.sort((a, b) => a.d - b.d)[0];
     return {
       matches: [],
       source: "",
@@ -180,38 +263,37 @@ export async function searchEurope(
       updatedAt,
       missingVenues: 0,
       nearest: {
-        club: nearest.c.name,
-        city: nearest.c.city,
+        club: nearest.name,
+        city: nearest.city,
         distance: Math.round(nearest.d),
       },
     };
   }
 
-  const [leagueResults, cupResult] = await Promise.all([
-    Promise.all(leagues.map((l) => loadLeague(l, input, deps))),
-    cups.length
-      ? loadFootballData(cups, input, deps).then(
-          (fixtures) => ({ fixtures, source: "football-data.org" as const }),
-          () => null,
-        )
-      : Promise.resolve(undefined),
-  ]);
-
-  const failed = leagues.filter((_, i) => !leagueResults[i]).map((l) => l.name);
-  if (cupResult === null) failed.push(...cups.map((c) => c.name));
-  const loaded = [...leagueResults, cupResult].filter((r) => !!r);
+  const competitions = [...leagues, ...cups];
+  const results = await Promise.all(
+    competitions.map((c) => loadLeague(c, input, deps)),
+  );
+  const failed = competitions.filter((_, i) => !results[i]).map((c) => c.name);
+  const loaded = results.flatMap((r, i) =>
+    r ? [{ ...r, cup: !competitions[i].countries.length }] : [],
+  );
   if (!loaded.length) throw new Error("Geen enkele wedstrijdbron reageerde.");
 
   const seen = new Set<string>();
   const inRange: Match[] = [],
     later: Match[] = [];
   let missingVenues = 0;
-  for (const fixture of loaded.flatMap((r) => r.fixtures)) {
+  const fixtures = loaded.flatMap((r) =>
+    r.fixtures.map((f) => ({ f, cup: r.cup })),
+  );
+  for (const { f: fixture, cup } of fixtures) {
     if (seen.has(fixture.id)) continue;
     seen.add(fixture.id);
-    const match = toMatch(fixture);
+    const match = toMatch(fixture, byId);
     if (!match) {
-      if (fixture.date >= input.start && fixture.date <= input.end)
+      // A cup match at an unknown stadium can be anywhere in Europe: not worth reporting.
+      if (!cup && fixture.date >= input.start && fixture.date <= input.end)
         missingVenues++;
       continue;
     }
@@ -223,7 +305,7 @@ export async function searchEurope(
   }
   inRange.sort((a, b) => a.kickoff.localeCompare(b.kickoff));
 
-  const names = [...leagues, ...cups]
+  const names = competitions
     .map((l) => l.name)
     .filter((n) => !failed.includes(n));
   const sources = [...new Set(loaded.map((r) => r.source))];

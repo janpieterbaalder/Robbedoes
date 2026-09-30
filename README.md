@@ -24,37 +24,43 @@ Vindt een zoekopdracht niets, dan zegt de app waarom: de eerstvolgende speeldag 
 
 ### Dekking
 
-| Land                | Competities                             | Bron (zonder sleutel)                |
-| ------------------- | --------------------------------------- | ------------------------------------ |
-| Nederland           | Eredivisie                              | openfootball                         |
-| Duitsland           | Bundesliga, 2. Bundesliga, 3. Liga      | OpenLigaDB, openfootball als reserve |
-| Engeland en Wales   | Premier League, Championship            | openfootball                         |
-| Spanje              | LaLiga                                  | openfootball                         |
-| Italië              | Serie A                                 | openfootball                         |
-| Frankrijk en Monaco | Ligue 1                                 | openfootball                         |
-| Portugal            | Liga Portugal (incl. Madeira en Azoren) | openfootball                         |
+| Land                                                                    | Competities                                                           | Bron                                 |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------ |
+| Nederland                                                               | Eredivisie, Keuken Kampioen Divisie                                   | openfootball; ESPN                   |
+| Duitsland                                                               | Bundesliga, 2. Bundesliga, 3. Liga                                    | OpenLigaDB, openfootball als reserve |
+| Engeland en Wales                                                       | Premier League, Championship, League One, League Two, National League | openfootball; ESPN                   |
+| Schotland                                                               | Premiership, Championship                                             | ESPN                                 |
+| Spanje                                                                  | LaLiga, LaLiga 2                                                      | openfootball; ESPN                   |
+| Italië                                                                  | Serie A, Serie B                                                      | openfootball; ESPN                   |
+| Frankrijk en Monaco                                                     | Ligue 1, Ligue 2                                                      | openfootball; ESPN                   |
+| Portugal                                                                | Liga Portugal (incl. Madeira en Azoren)                               | openfootball                         |
+| België, Oostenrijk, Denemarken, Zweden, Noorwegen, Griekenland, Turkije | hoogste niveau                                                        | ESPN                                 |
+| Europa                                                                  | Champions League, Europa League, Conference League                    | ESPN; football-data.org als reserve  |
 
-Met `FOOTBALL_DATA_API_KEY` (gratis account bij football-data.org) komt de Champions League erbij en dient football-data.org als reservebron voor de competities die het gratis abonnement dekt. Niet gedekt: België, Schotland, Oostenrijk, Zwitserland, Scandinavië, Oost-Europa en de meeste tweede niveaus. Het ontbreken van resultaten is geen bewijs dat er niet gevoetbald wordt.
+Waar openfootball of OpenLigaDB een competitie levert, gaat die bron voor; ESPN is dan de laatste reserve. Niet gedekt: Zwitserland, Polen, Tsjechië, Kroatië, Servië, Roemenië, Hongarije en Ierland, de tweede niveaus van Portugal, België, Oostenrijk, Turkije, Griekenland en Scandinavië, en derde niveaus behalve de 3. Liga. Rusland zit er bewust niet in. Het ontbreken van resultaten is geen bewijs dat er niet gevoetbald wordt.
 
 ### Bronnen
 
 - **openfootball/football.json**: publiek domein, dagelijks automatisch bijgewerkt, via `raw.githubusercontent.com` zonder sleutel. Aftraptijden staan in lokale tijd van de competitie en worden per wedstrijd naar UTC omgerekend (zomer- en wintertijd inbegrepen). Wedstrijden waarvan de competitie de tijd nog niet heeft vastgesteld, tonen **tijd volgt** en worden als hele-dagafspraak geëxporteerd. Let op: de Premier League publiceert verre wedstrijden met de voorlopige standaardtijd za 15:00; die tijd is dus geen bevestiging.
 - **OpenLigaDB**: communitygegevens voor de drie Duitse profcompetities, met UTC-tijden.
-- **football-data.org v4** (optioneel): verzoeken in vaste vensters van zeven dagen, zodat gebruikers dezelfde gecachte antwoorden delen en de limiet van het gratis abonnement (10 verzoeken per minuut) buiten zicht blijft.
+- **ESPN** (`site.api.espn.com`): openbaar maar ongedocumenteerd en zonder sleutel, dus zonder afspraken; het kan zonder aankondiging veranderen of stoppen. Eén verzoek per competitie per kalendermaand, zes uur gecachet en hooguit vier tegelijk. ESPN weigert verzoeken met een eigen User-Agent, dus de server stuurt er geen mee. ESPN geeft per wedstrijd het stadion en of de aftraptijd vaststaat; zo niet, dan zet ESPN de wedstrijd op 20:00 UTC op een voorlopige datum en toont de app **tijd volgt** met de melding dat datum en tijd nog kunnen wijzigen.
+- **football-data.org v4** (optioneel, `FOOTBALL_DATA_API_KEY`): reservebron voor vijf competities en de Champions League. Verzoeken in vaste vensters van zeven dagen, zodat gebruikers dezelfde gecachte antwoorden delen en de limiet van het gratis abonnement (10 verzoeken per minuut) buiten zicht blijft.
 
 `/api/status` controleert alle bronnen live, inclusief of de football-data.org-sleutel werkt (`ok`, `error` met HTTP-status en uitleg, of `not_configured`). Open bijvoorbeeld `https://robbedoes-alpha.vercel.app/api/status`.
 
-Per competitie probeert de server de bronnen op volgorde; valt er één uit, dan neemt de volgende het over. Competities zonder bereikbare bron worden in de app gemeld. De server haalt alleen competities op met een gedekt stadion binnen de zoekstraal. Antwoorden worden een kwartier (OpenLigaDB, football-data.org) of een uur (openfootball) gecachet; bij een storing van de bron worden gegevens tot een dag oud gebruikt. Tijdstippen moeten altijd bij de club worden bevestigd.
+Per competitie probeert de server de bronnen op volgorde; valt er één uit, dan neemt de volgende het over. Voor de Europese bekers staat ESPN voorop, omdat ESPN het stadion van elke club in Europa noemt en football-data.org alleen clubs uit de catalogus kan plaatsen. Competities zonder bereikbare bron worden in de app gemeld. De server haalt alleen competities op met een stadion binnen de zoekstraal. Antwoorden worden een kwartier (OpenLigaDB, football-data.org), een uur (openfootball) of zes uur (ESPN) gecachet; bij een storing van de bron worden gegevens tot een dag oud gebruikt. Tijdstippen moeten altijd bij de club worden bevestigd.
 
-### Stadioncatalogus
+### Stadions
 
-`lib/clubs.ts` bevat 195 clubs met stadion, stad, coördinaten, tijdzone, clubwebsite en de schrijfwijzen die bronnen gebruiken. `lib/club-lookup.ts` koppelt namen van bronnen aan clubs: exact op genormaliseerde naam, en binnen het land van de competitie ook op alle woorden van een alias. Tweede elftallen worden nooit aan het stadion van het eerste elftal gekoppeld; clubs die niet in de catalogus staan, worden overgeslagen en gemeld, niet geraden.
+Wedstrijden uit openfootball, OpenLigaDB en football-data.org worden via de clubcatalogus geplaatst, ESPN-wedstrijden via het stadion dat ESPN noemt.
 
-De coördinaten zijn bij benadering: voor 91 clubs gecontroleerd tegen een openbare dataset (afwijking maximaal 0,3 km, verhuisde stadions uitgezonderd), voor kleinere clubs een schatting die enkele kilometers kan afwijken. Stadionwissels tot en met 2026/27 zijn verwerkt, zoals Everton (Hill Dickinson Stadium), Real Betis (La Cartuja), Barcelona (terug in Camp Nou) en Casa Pia (Rio Maior, 70 km van Lissabon). Clubs zonder zeker bekende website krijgen een zoeklink in plaats van een gegokt domein.
+`lib/clubs.ts` bevat 195 clubs met stadion, stad, coördinaten, tijdzone, clubwebsite en de schrijfwijzen die bronnen gebruiken. `lib/club-lookup.ts` koppelt namen van bronnen aan clubs: exact op genormaliseerde naam, en binnen het land van de competitie ook op alle woorden van een alias. Tweede elftallen worden nooit aan het stadion van het eerste elftal gekoppeld; clubs die niet in de catalogus staan, worden overgeslagen en gemeld, niet geraden. De coördinaten zijn voor 91 clubs gecontroleerd tegen een openbare dataset (afwijking maximaal 0,3 km, verhuisde stadions uitgezonderd); voor kleinere clubs zijn ze een schatting die enkele kilometers kan afwijken. Clubs zonder zeker bekende website krijgen een zoeklink in plaats van een gegokt domein.
 
-Na promoties en degradaties: `npm run check:coverage` haalt de actuele seizoensbestanden op en meldt teams zonder stadion. Voeg die toe aan `lib/clubs.ts` en werk `tests/fixtures/teams.ts` bij.
+`lib/venues.ts` bevat de 481 stadions waar de ESPN-competities in 2026/27 spelen, met coördinaten en tijdzone: 169 uit de clubcatalogus, 291 uit Wikidata, 12 uit OpenStreetMap, 8 met de hand geplaatst en 1 op het stadsmidden; bij 9 andere is ESPN's plaatsnaam met de hand verbeterd. 4 stadions zijn alleen op stadsniveau bekend. Het bestand wordt gemaakt door `npm run build:venues`. Dat script haalt het hele seizoen van elke ESPN-competitie op en zoekt per stadion de coördinaten, in deze volgorde: de clubcatalogus, het huidige thuisstadion van de club in Wikidata, een stadion met dezelfde naam in Wikidata, OpenStreetMap, en als laatste het centrum van de stad. Dat laatste is gemarkeerd als **locatie bij benadering**; de app toont dat en laat de routeknop dan op stadionnaam zoeken. Stadions waar alleen Europese bekerwedstrijden worden gespeeld, moeten dezelfde naam dragen als het thuisstadion in Wikidata, omdat kleine clubs die wedstrijden vaak naar een groter stadion verplaatsen. Correcties gaan in `VENUE_OVERRIDES` in `scripts/build-venues.ts`. ESPN noemt soms de verkeerde stad (Troyes als Paris, IK Start als Kristiansund); het script meldt elk stadion dat verder dan 25 km van ESPN's stad ligt of alleen op stadsniveau bekend is, zodat het met de hand kan worden nagelopen. Coördinaten deels © OpenStreetMap-bijdragers (ODbL) en uit Wikidata (CC0).
 
-Plaatsnamen via Open-Meteo Geocoding / GeoNames. Bronnen: https://github.com/openfootball/football.json, https://api.openligadb.de, https://docs.football-data.org/general/v4/index.html, https://open-meteo.com/en/docs/geocoding-api. Afstanden zijn hemelsbreed, geen rijafstanden.
+Na promoties en degradaties: `npm run check:coverage` meldt teams uit openfootball en OpenLigaDB zonder plek in de catalogus, en ESPN-stadions van de komende twee maanden die `lib/venues.ts` niet kent. Voeg clubs toe aan `lib/clubs.ts` (en werk `tests/fixtures/teams.ts` bij) of draai `npm run build:venues`.
+
+Plaatsnamen via Open-Meteo Geocoding / GeoNames. Bronnen: https://github.com/openfootball/football.json, https://api.openligadb.de, https://docs.football-data.org/general/v4/index.html, https://www.wikidata.org, https://nominatim.openstreetmap.org, https://open-meteo.com/en/docs/geocoding-api. Afstanden zijn hemelsbreed, geen rijafstanden.
 
 ### Ticketsterren
 
@@ -70,7 +76,7 @@ Zonder configuratie wordt geen werkend account gesuggereerd: favorieten blijven 
 
 ## Publiceren
 
-Importeer dit bestaande GitHub-project in Vercel, kies Next.js en publiceer. Voor de wedstrijdzoeker zijn geen secrets vereist. Stel voor accounts en meer wedstrijden de optionele variabelen uit `.env.example` in. Deel nooit sleutels in GitHub of clientvariabelen. Deze repository bevat geen credentials. De app is in deze oplevering nog niet online gepubliceerd.
+De app draait op Vercel: https://robbedoes-alpha.vercel.app. Elke merge naar `main` wordt automatisch gepubliceerd. Voor de wedstrijdzoeker zijn geen secrets vereist; `FOOTBALL_DATA_API_KEY` is een optionele reservebron. Stel voor accounts de optionele variabelen uit `.env.example` in. Deel nooit sleutels in GitHub of clientvariabelen. Deze repository bevat geen credentials.
 
 ## Privacy en installatie
 
@@ -80,7 +86,7 @@ Op iPhone: Safari → Delen → Zet op beginscherm. Op Android: browsermenu → 
 
 ## Validatie
 
-`npm test` controleert de afstandsberekening (ook de datumgrens), datumfiltering in stadiontijdzone, zoekstraal, onbekende ticketkansen, tijdzoneomrekening rond zomer- en wintertijd, de drie bronformaten, de koppeling van alle 156 teamnamen uit de openfootball-competities van 2026/27, de catalogus en de zoeklogica (bronkeuze, fallback, meldingen, volgende speeldag, dichtstbijzijnd stadion) met nagebootste bronnen. `npm run build` controleert de volledige productiebuild en TypeScript. GitHub Actions voert beide uit bij pushes en pull requests.
+`npm test` controleert de afstandsberekening (ook de datumgrens), datumfiltering in stadiontijdzone, zoekstraal, onbekende ticketkansen, tijdzoneomrekening rond zomer- en wintertijd, de vier bronformaten, de koppeling van alle 156 teamnamen uit de openfootball-competities van 2026/27, de catalogus, de stadiontabel en de zoeklogica (bronkeuze, fallback, plaatsing op stadion, Europese bekers, meldingen, volgende speeldag, dichtstbijzijnd stadion) met nagebootste bronnen. `npm run build` controleert de volledige productiebuild en TypeScript. GitHub Actions voert beide uit bij pushes en pull requests.
 
 De Europese zoekfunctie is in de productieversie in een mobiele browser gecontroleerd met echte openfootball-gegevens: Rotterdam, Londen, Dortmund, Barcelona, Milaan en Lissabon, een lege interlandweek met de knop naar de volgende speeldag, een wedstrijd zonder aanvangstijd (weergave en agenda-export) en Brussel buiten de dekking. OpenLigaDB is gecontroleerd op de Vercel-preview: Bundesliga, 2. Bundesliga en 3. Liga laden, en over 9 t/m 18 oktober 2026 werden alle Duitse thuisteams gekoppeld. football-data.org is alleen getest met nagebootste antwoorden in het gedocumenteerde formaat.
 

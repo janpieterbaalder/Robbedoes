@@ -1,7 +1,9 @@
-// Lists team names from the live feeds that the club catalogue cannot place.
+// Lists team names from the open feeds that the club catalogue cannot place, and ESPN
+// stadiums missing from lib/venues.ts (fix those with npm run build:venues).
 // Run after promotions and relegations: npm run check:coverage
 import { findClub } from "../lib/club-lookup";
-import { LEAGUES, seasonOf } from "../lib/leagues";
+import { espnMonths, espnUrl, parseEspn } from "../lib/espn";
+import { CUPS, LEAGUES, seasonOf } from "../lib/leagues";
 import {
   openfootballUrl,
   openLigaDbUrl,
@@ -9,6 +11,7 @@ import {
   parseOpenLigaDb,
   type Fixture,
 } from "../lib/sources";
+import { venueById } from "../lib/venues";
 
 const season = seasonOf(new Date().toISOString().slice(0, 10));
 
@@ -47,6 +50,30 @@ async function main() {
           `- ${league.name}: niet beschikbaar (${(error as Error).message})  (${url})`,
         );
       }
+    }
+  }
+  // ESPN: stadiums of the coming two months that the stadium table does not know.
+  const today = new Date().toISOString().slice(0, 10);
+  const inTwoMonths = new Date(Date.now() + 60 * 86400000)
+    .toISOString()
+    .slice(0, 10);
+  for (const league of [...LEAGUES, ...CUPS].filter((l) => l.espn)) {
+    const unknown = new Set<string>();
+    try {
+      for (const month of espnMonths(today, inTwoMonths)) {
+        const url = espnUrl(league.espn!, month);
+        for (const f of parseEspn(await load(url), league))
+          if (f.venue && !venueById.has(f.venue.id))
+            unknown.add(`${f.venue.name} (${f.venue.city ?? "?"}, ${f.home})`);
+      }
+      unresolved += unknown.size;
+      console.log(
+        `${unknown.size ? "✗" : "✓"} ${league.name} (ESPN)${unknown.size ? `, onbekende stadions: ${[...unknown].join("; ")}` : ""}`,
+      );
+    } catch (error) {
+      console.log(
+        `- ${league.name} (ESPN): niet beschikbaar (${(error as Error).message})`,
+      );
     }
   }
   return unresolved;
