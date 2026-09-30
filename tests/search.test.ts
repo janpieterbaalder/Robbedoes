@@ -57,9 +57,11 @@ test("searches only leagues with a club inside the radius", async () => {
     { ...ROTTERDAM, radius: 50, ...WEEK },
     { fetchJson, venues: [] },
   );
+  // ESPN goes first; without an ESPN page openfootball takes over.
   assert.deepEqual(
     requested.map((q) => q.url),
     [
+      "https://site.api.espn.com/apis/site/v2/sports/soccer/ned.1/scoreboard?dates=202610",
       "https://raw.githubusercontent.com/openfootball/football.json/master/2026-27/nl.1.json",
     ],
   );
@@ -123,7 +125,7 @@ test("falls back to the next feed and reports leagues without data", async () =>
   assert.equal(r.matches[0].home, "Borussia Dortmund");
 });
 
-test("uses OpenLigaDB first for German leagues", async () => {
+test("without ESPN, German leagues come from OpenLigaDB", async () => {
   const { fetchJson } = fakeFetch({
     "getmatchdata/bl2/2026": [
       {
@@ -325,6 +327,56 @@ test("without ESPN the Champions League falls back to football-data.org", async 
   // Club Brugge is not in the catalogue: skipped, and not counted because a cup match at
   // an unknown stadium can be anywhere in Europe.
   assert.equal(r.missingVenues, 1);
+});
+
+test("ESPN goes first; an unknown ESPN stadium falls back to the catalogue", async () => {
+  const { fetchJson, requested } = fakeFetch({
+    "nl.1.json": eredivisie,
+    "ned.1/scoreboard?dates=202610": {
+      events: [
+        // Moved for TV: openfootball still lists Saturday 18:45.
+        espnEvent(
+          "31",
+          "2026-10-11T12:15Z",
+          "1",
+          "Feyenoord Rotterdam",
+          "AZ Alkmaar",
+        ),
+        // A stadium id missing from the table, and no confirmed kick-off yet.
+        espnEvent(
+          "32",
+          "2026-10-11T20:00Z",
+          "404",
+          "Sparta Rotterdam",
+          "NEC Nijmegen",
+          false,
+        ),
+      ],
+    },
+  });
+  const r = await searchEurope(
+    { ...ROTTERDAM, radius: 50, ...WEEK },
+    { fetchJson, venues: [{ ...KUIP, competitions: ["ned.1"] }] },
+  );
+  assert.ok(!requested.some((q) => q.url.includes("openfootball")));
+  assert.equal(r.source, "ESPN");
+  assert.deepEqual(
+    r.matches.map((m) => [
+      m.home,
+      m.away,
+      m.kickoff,
+      m.stadium,
+      m.timeTbc ?? false,
+    ]),
+    [
+      ["Sparta Rotterdam", "NEC", "2026-10-11T10:00:00Z", "Het Kasteel", true],
+      ["Feyenoord", "AZ", "2026-10-11T12:15:00Z", "De Kuip", false],
+    ],
+  );
+  assert.equal(r.matches[1].ticketUrl, "https://feyenoord.com");
+  assert.equal(r.matches[1].provisional, false);
+  assert.equal(r.matches[0].provisional, true);
+  assert.equal(r.missingVenues, 0);
 });
 
 test("an ESPN-only league is searched when one of its stadiums is in range", async () => {

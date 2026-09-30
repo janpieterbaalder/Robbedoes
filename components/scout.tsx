@@ -1168,11 +1168,11 @@ export default function Scout({
               {COVERAGE}. Daarnaast de {listNl(CUPS.map((c) => c.name))}.
             </p>
             <p>
-              De speelschema’s komen van openfootball (openbaar, dagelijks
-              bijgewerkt), voor Duitsland van OpenLigaDB en voor de overige
-              competities en de Europese bekers van ESPN. ESPN is geen officiële
-              bron; werkt die niet, dan meldt de app welke competities
-              ontbreken. Stadionlocaties komen deels van ©
+              De speelschema’s komen van ESPN, dat verschoven aftraptijden het
+              snelst verwerkt; de 3. Liga komt van OpenLigaDB. ESPN is geen
+              officiële bron. Antwoordt ESPN niet, dan nemen openfootball en
+              OpenLigaDB het over waar zij de competitie hebben, en meldt de app
+              welke competities ontbreken. Stadionlocaties komen deels van ©
               OpenStreetMap-bijdragers.
             </p>
             <p>

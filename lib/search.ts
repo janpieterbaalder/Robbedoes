@@ -53,15 +53,15 @@ const hasVenueWithin = (
       v.competitions.includes(slug) && distanceKm(point, v) <= point.radius,
   );
 
-/** Leagues with an open feed are placed by the club catalogue, the others by stadium. */
+/** A competition is searched when a catalogue club or an ESPN stadium lies within the radius. */
 const isRelevant = (
   league: League,
   point: SearchInput,
   venues: readonly Venue[],
 ) =>
-  league.openfootball || league.openLigaDb
-    ? hasClubWithin(league.countries, point)
-    : !!league.espn && hasVenueWithin(venues, league.espn, point);
+  (!!(league.openfootball || league.openLigaDb) &&
+    hasClubWithin(league.countries, point)) ||
+  (!!league.espn && hasVenueWithin(venues, league.espn, point));
 
 function seasons(input: SearchInput) {
   const list = [seasonOf(input.start), seasonOf(input.end)];
@@ -134,16 +134,15 @@ function feedsFor(
     load: async () => {
       const pages = await Promise.all(
         espnMonths(input.start, input.end).map((month) =>
-          espnSlot(() =>
-            fetchJson(espnUrl(slug, month), { ttlSeconds: 21600 }),
-          ),
+          espnSlot(() => fetchJson(espnUrl(slug, month), { ttlSeconds: 3600 })),
         ),
       );
       return pages.flatMap((page) => parseEspn(page, league));
     },
   };
-  // Cups: ESPN names the stadium of every club; football-data.org only knows catalogue clubs.
-  return league.countries.length ? [...feeds, espn] : [espn, ...feeds];
+  // ESPN goes first: it picks up rescheduled kick-offs (TV picks) weeks before openfootball
+  // and marks unconfirmed times, which openfootball and OpenLigaDB list as a default slot.
+  return [espn, ...feeds];
 }
 
 async function loadFootballData(
@@ -211,10 +210,16 @@ function atVenue(f: Fixture, venue: Venue | undefined): Match | null {
 }
 
 function toMatch(f: Fixture, venues: Map<string, Venue>): Match | null {
-  if (f.venue) return atVenue(f, venues.get(f.venue.id));
-  const home = findClub(f.home, f.countries);
+  if (f.venue) {
+    const match = atVenue(f, venues.get(f.venue.id));
+    // A cup match at an unknown stadium may be on neutral ground: never guess its place.
+    if (match || !f.countries) return match;
+  }
+  // No known stadium: the home club's ground from the catalogue. ESPN names must match whole.
+  const espn = f.source === "ESPN";
+  const home = findClub(f.home, f.countries, espn);
   if (!home) return null;
-  const away = findClub(f.away, f.countries);
+  const away = findClub(f.away, f.countries, espn);
   return {
     id: f.id,
     home: home.name,

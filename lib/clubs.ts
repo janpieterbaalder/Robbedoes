@@ -90,7 +90,7 @@ export const CLUBS: Club[] = [
     ["dordrecht", "FC Dordrecht", ["Dordrecht"], "M-Scores Stadion", "Dordrecht", 51.8135, 4.6901, "fcdordrecht.nl", "#408657"],
   ]),
   ...group("DE", "Europe/Berlin", [
-    ["koln", "1. FC Köln", ["FC Köln", "Köln", "1. FC Koeln"], "RheinEnergieSTADION", "Keulen", 50.9335, 6.8751, "fc.de", "#ed2030"],
+    ["koln", "1. FC Köln", ["FC Köln", "Köln", "1. FC Koeln", "FC Cologne"], "RheinEnergieSTADION", "Keulen", 50.9335, 6.8751, "fc.de", "#ed2030"],
     ["union-berlin", "Union Berlin", ["1. FC Union Berlin", "FC Union Berlin"], "Stadion An der Alten Försterei", "Berlijn", 52.4572, 13.5681, "fc-union-berlin.de", "#de2631"],
     ["mainz", "Mainz 05", ["1. FSV Mainz 05", "FSV Mainz 05", "Mainz"], "MEWA Arena", "Mainz", 49.9842, 8.2243, "mainz05.de", "#c8102e"],
     ["leverkusen", "Bayer Leverkusen", ["Bayer 04 Leverkusen", "Leverkusen"], "BayArena", "Leverkusen", 51.0383, 7.0022, "bayer04.de", "#e32834"],
@@ -263,9 +263,9 @@ export const CLUBS: Club[] = [
   ]),
   ...group("PT", "Europe/Lisbon", [
     ["academico-viseu", "Académico de Viseu", ["Académico de Viseu FC", "Académico Viseu", "Academico Viseu"], "Estádio do Fontelo", "Viseu", 40.6585, -7.907, null],
-    ["nacional", "Nacional", ["CD Nacional", "Nacional da Madeira"], "Estádio da Madeira", "Funchal", 32.6711, -16.8847, null, undefined, "Atlantic/Madeira"],
+    ["nacional", "Nacional", ["CD Nacional", "C.D. Nacional", "Nacional da Madeira"], "Estádio da Madeira", "Funchal", 32.6711, -16.8847, null, undefined, "Atlantic/Madeira"],
     ["santa-clara", "Santa Clara", ["CD Santa Clara"], "Estádio de São Miguel", "Ponta Delgada", 37.7482, -25.6592, null, "#e0303a", "Atlantic/Azores"],
-    ["estrela", "Estrela da Amadora", ["CF Estrela da Amadora", "Estrela Amadora"], "Estádio José Gomes", "Amadora", 38.7527, -9.2244, null, "#e0303a"],
+    ["estrela", "Estrela da Amadora", ["CF Estrela da Amadora", "Estrela Amadora", "Estrela"], "Estádio José Gomes", "Amadora", 38.7527, -9.2244, null, "#e0303a"],
     ["maritimo", "Marítimo", ["CS Marítimo", "Maritimo"], "Estádio do Marítimo", "Funchal", 32.6468, -16.9269, "csmaritimo.org.pt", "#e0303a", "Atlantic/Madeira"],
     ["casa-pia", "Casa Pia", ["Casa Pia AC"], "Estádio Municipal de Rio Maior", "Rio Maior", 39.336, -8.939, "casapiaac.pt"],
     ["alverca", "FC Alverca", ["Alverca"], "Complexo Desportivo FC Alverca", "Alverca do Ribatejo", 38.8989, -9.0406, "fcalvercafutebolsad.pt", "#3a7fd0"],
