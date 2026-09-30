@@ -67,6 +67,10 @@ test("provider spellings resolve to the right club", () => {
   assert.equal(findClub("Paris SG")?.id, "psg");
   assert.equal(findClub("Paris FC")?.id, "paris-fc");
   assert.equal(findClub("Brighton and Hove Albion")?.id, "brighton");
+  // ESPN spellings, which only count as whole names.
+  assert.equal(findClub("FC Cologne", de, true)?.id, "koln");
+  assert.equal(findClub("C.D. Nacional", pt, true)?.id, "nacional");
+  assert.equal(findClub("Estrela", pt, true)?.id, "estrela");
 });
 
 test("unknown or reserve sides never borrow a first-team stadium", () => {
