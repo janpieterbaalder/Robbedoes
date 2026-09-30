@@ -38,8 +38,9 @@ import {
   ticketScore,
   ticketReason,
 } from "@/lib/football";
+import { COUNTRY_NAMES } from "@/lib/clubs";
 import { demoMatches } from "@/lib/demo";
-import { LEAGUES } from "@/lib/leagues";
+import { CUPS, LEAGUES } from "@/lib/leagues";
 import { localDateIn } from "@/lib/time";
 const ROTTERDAM: Place = {
   name: "Rotterdam, Nederland",
@@ -53,10 +54,20 @@ const PRESETS: Place[] = [
   { name: "Barcelona, Spanje", lat: 41.3874, lon: 2.1686 },
   { name: "Milaan, Italië", lat: 45.4642, lon: 9.19 },
   { name: "Lissabon, Portugal", lat: 38.7223, lon: -9.1393 },
+  { name: "Brussel, België", lat: 50.8503, lon: 4.3517 },
+  { name: "Glasgow, Schotland", lat: 55.8642, lon: -4.2518 },
 ];
-const COVERAGE = new Intl.ListFormat("nl", { type: "conjunction" }).format(
-  LEAGUES.map((l) => l.name),
-);
+const listNl = (items: string[]) =>
+  new Intl.ListFormat("nl", { type: "conjunction" }).format(items);
+const byCountry = new Map<string, string[]>();
+for (const l of LEAGUES) {
+  const country = COUNTRY_NAMES[l.countries[0]] ?? l.countries[0];
+  byCountry.set(country, [...(byCountry.get(country) ?? []), l.name]);
+}
+const COVERAGE = [...byCountry]
+  .map(([country, names]) => `${country}: ${listNl(names)}`)
+  .join("; ");
+const COVERAGE_SHORT = `${LEAGUES.length} competities in ${byCountry.size} landen, plus ${listNl(CUPS.map((c) => c.name))}`;
 const dateLabel = (s: string) =>
   new Date(s + "T12:00:00").toLocaleDateString("nl-NL", {
     day: "numeric",
@@ -966,7 +977,7 @@ export default function Scout({
                       ? "Voorbeelden, geen speelschema. Ticketsterren zijn schattingen, geen garantie."
                       : response?.source
                         ? `Bronnen: ${response.source}. Doorzocht: ${response.coverage}.${response.missingVenues ? ` ${response.missingVenues} wedstrijden zonder bekende stadionlocatie overgeslagen.` : ""}`
-                        : `Dekking: ${COVERAGE}.`}
+                        : `Dekking: ${COVERAGE_SHORT}.`}
                     <br />
                     Afstanden zijn hemelsbreed. Tijden zijn lokaal bij het
                     stadion.
@@ -1245,16 +1256,20 @@ export default function Scout({
             </p>
             <h3>Welke wedstrijden vind je?</h3>
             <p>
-              Competities in Nederland, Duitsland, Engeland en Wales, Spanje,
-              Italië, Frankrijk en Portugal: {COVERAGE}. De speelschema’s komen
-              van openfootball (openbaar, dagelijks bijgewerkt) en voor
-              Duitsland van OpenLigaDB. Met een football-data.org-sleutel komt
-              de Champions League erbij.
+              {COVERAGE}. Daarnaast de {listNl(CUPS.map((c) => c.name))}.
             </p>
             <p>
-              Andere landen, zoals België, en de meeste lagere divisies zitten
-              er nog niet in. Staat een aftraptijd er nog niet bij, dan heeft de
-              competitie hem nog niet vastgesteld.
+              De speelschema’s komen van openfootball (openbaar, dagelijks
+              bijgewerkt), voor Duitsland van OpenLigaDB en voor de overige
+              competities en de Europese bekers van ESPN. ESPN is geen officiële
+              bron; werkt die niet, dan meldt de app welke competities
+              ontbreken. Stadionlocaties komen deels van ©
+              OpenStreetMap-bijdragers.
+            </p>
+            <p>
+              Niet gedekt zijn onder meer Zwitserland, Polen, Tsjechië en de
+              meeste derde niveaus. Staat een aftraptijd er nog niet bij, dan
+              heeft de competitie hem nog niet vastgesteld.
             </p>
             <h3>Jouw gegevens</h3>
             <p>
@@ -1309,8 +1324,9 @@ export default function Scout({
               <small>
                 {selected.city}
                 {selected.distance !== undefined
-                  ? ` · ${Math.round(selected.distance)} km hemelsbreed`
+                  ? ` · ${selected.approx ? "ongeveer " : ""}${Math.round(selected.distance)} km hemelsbreed`
                   : ""}
+                {selected.approx ? " · locatie bij benadering" : ""}
               </small>
             </span>
           </div>
@@ -1354,7 +1370,11 @@ export default function Scout({
           <div className="detail-actions">
             <a
               className="secondary"
-              href={`https://www.google.com/maps/dir/?api=1&destination=${selected.lat},${selected.lon}`}
+              href={`https://www.google.com/maps/dir/?api=1&destination=${
+                selected.approx
+                  ? encodeURIComponent(`${selected.stadium}, ${selected.city}`)
+                  : `${selected.lat},${selected.lon}`
+              }`}
               target="_blank"
               rel="noopener noreferrer"
             >

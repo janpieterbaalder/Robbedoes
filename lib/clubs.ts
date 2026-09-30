@@ -56,6 +56,14 @@ export const COUNTRY_NAMES: Record<string, string> = {
   FR: "Frankrijk",
   MC: "Monaco",
   PT: "Portugal",
+  SC: "Schotland",
+  BE: "België",
+  AT: "Oostenrijk",
+  DK: "Denemarken",
+  SE: "Zweden",
+  NO: "Noorwegen",
+  GR: "Griekenland",
+  TR: "Turkije",
 };
 
 // prettier-ignore

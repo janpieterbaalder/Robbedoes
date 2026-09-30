@@ -1,7 +1,8 @@
 import type { League } from "./leagues";
 import { isIsoDate, localDateIn, zonedTimeToUtc } from "./time";
 
-export type SourceName = "openfootball" | "OpenLigaDB" | "football-data.org";
+export type SourceName =
+  "openfootball" | "OpenLigaDB" | "football-data.org" | "ESPN";
 
 /** A scheduled match as a provider reports it, before the home club is resolved. */
 export type Fixture = {
@@ -17,11 +18,16 @@ export type Fixture = {
   utc?: string;
   provisional: boolean;
   source: SourceName;
+  /** Stadium named by the provider (ESPN). Such matches are placed through lib/venues.ts. */
+  venue?: { id: string; name: string; city?: string; country?: string };
+  homeRef?: string;
+  homeColor?: string;
+  awayColor?: string;
 };
 
-const record = (v: unknown): Record<string, unknown> | null =>
+export const record = (v: unknown): Record<string, unknown> | null =>
   v && typeof v === "object" ? (v as Record<string, unknown>) : null;
-const text = (v: unknown) =>
+export const text = (v: unknown) =>
   typeof v === "string" && v.trim() ? v.trim() : undefined;
 const slug = (s: string) =>
   s
@@ -30,7 +36,7 @@ const slug = (s: string) =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
-const isoInstant = (v: unknown) => {
+export const isoInstant = (v: unknown) => {
   const s = text(v);
   if (!s) return undefined;
   const withZone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(s) ? s : s + "Z";

@@ -16,6 +16,7 @@ test("reports every source and whether the football-data.org key works", async (
       });
       if (url.includes("openfootball")) return json({ matches: [{}, {}, {}] });
       if (url.includes("openligadb")) return json([{}, {}]);
+      if (url.includes("espn")) return json({ events: [{}, {}, {}, {}] });
       return json(
         { message: "The resource you are looking for is restricted." },
         403,
@@ -28,6 +29,12 @@ test("reports every source and whether the football-data.org key works", async (
     [
       ["openfootball", "ok", 200, "Eredivisie 2026-27: 3 wedstrijden."],
       ["OpenLigaDB", "ok", 200, "Bundesliga 2026-27: 2 wedstrijden."],
+      [
+        "ESPN",
+        "ok",
+        200,
+        "Keuken Kampioen Divisie, september 2026: 4 wedstrijden.",
+      ],
       [
         "football-data.org",
         "error",
@@ -42,6 +49,7 @@ test("reports every source and whether the football-data.org key works", async (
   );
   assert.ok(seen.some((s) => s.url.endsWith("/2026-27/nl.1.json")));
   assert.ok(seen.some((s) => s.url.endsWith("/getmatchdata/bl1/2026")));
+  assert.ok(seen.some((s) => s.url.endsWith("/ned.2/scoreboard?dates=202609")));
 });
 
 test("a missing key is reported, not treated as an error", async () => {
@@ -57,6 +65,7 @@ test("a missing key is reported, not treated as an error", async () => {
     [
       ["openfootball", "error"],
       ["OpenLigaDB", "error"],
+      ["ESPN", "error"],
       ["football-data.org", "not_configured"],
     ],
   );

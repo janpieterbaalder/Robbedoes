@@ -57,17 +57,27 @@ const memo = new Map<string, Club | null>();
  * ("Real Betis Balompié SAD" → Real Betis); the longest such alias must be unique.
  * Outside those countries only exact matches count, so "Sporting Gijón" never becomes
  * Sporting CP.
+ * With `wholeName` only whole-name matches count. Use that for providers whose leagues
+ * include clubs outside the catalogue, so "Juve Stabia" never becomes Juventus.
  */
-export function findClub(name: string, countries?: readonly string[]) {
-  const memoKey = `${countries?.join(",") ?? "*"}|${name}`;
+export function findClub(
+  name: string,
+  countries?: readonly string[],
+  wholeName = false,
+) {
+  const memoKey = `${wholeName ? "=" : ""}${countries?.join(",") ?? "*"}|${name}`;
   const hit = memo.get(memoKey);
   if (hit !== undefined) return hit ?? undefined;
-  const result = resolve(name, countries) ?? null;
+  const result = resolve(name, countries, wholeName) ?? null;
   memo.set(memoKey, result);
   return result ?? undefined;
 }
 
-function resolve(name: string, countries?: readonly string[]) {
+function resolve(
+  name: string,
+  countries: readonly string[] | undefined,
+  wholeName: boolean,
+) {
   const key = normalizeName(name);
   if (!key) return undefined;
   const candidates = exact.get(key) ?? [];
@@ -77,6 +87,7 @@ function resolve(name: string, countries?: readonly string[]) {
   if (scoped.length === 1) return scoped[0];
   if (scoped.length > 1) return undefined;
   if (!countries) return candidates.length === 1 ? candidates[0] : undefined;
+  if (wholeName) return undefined;
   const tokens = new Set(key.split(" "));
   let best: Club | undefined,
     bestLength = 0,

@@ -13,6 +13,8 @@ export type Match = {
   city: string;
   lat: number;
   lon: number;
+  /** Only the city centre is known; the stadium can be a few kilometres away. */
+  approx?: boolean;
   timezone: string;
   color: string;
   awayColor?: string;
