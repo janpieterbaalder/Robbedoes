@@ -47,8 +47,7 @@ export async function GET(req: NextRequest) {
   } catch {
     return NextResponse.json(
       {
-        error:
-          "De wedstrijdbronnen reageren niet. Probeer het straks opnieuw. Er worden geen voorbeeldwedstrijden als echte resultaten getoond.",
+        error: "De wedstrijdbronnen reageren niet. Probeer het straks opnieuw.",
       },
       { status: 502 },
     );

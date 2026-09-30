@@ -22,7 +22,7 @@ export function ticketScore(match: Match) {
 export function ticketReason(match: Match) {
   if (match.demand === "unknown")
     return "Er is onvoldoende informatie om de ticketkans te schatten. Bekijk de verkoopvoorwaarden bij de club.";
-  return `${match.demo ? "Voorbeeld van de rekenregel. " : ""}Indicatie op basis van een handmatig ingeschatte clubpopulariteit${match.derby ? " en extra vraag bij een derby" : ""}. Geen controle van kaartvoorraad, vrije verkoop of clubcardvoorwaarden. De score is geen kanspercentage.`;
+  return `Indicatie op basis van een handmatig ingeschatte clubpopulariteit${match.derby ? " en extra vraag bij een derby" : ""}. Geen controle van kaartvoorraad, vrije verkoop of clubcardvoorwaarden. De score is geen kanspercentage.`;
 }
 export function localDate(date = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -35,17 +35,4 @@ export function addDays(value: string, n: number) {
 export function inDateRange(match: Match, start: string, end: string) {
   const day = localDateIn(match.kickoff, match.timezone);
   return day >= start && day <= end;
-}
-export function searchMatches(
-  matches: Match[],
-  place: Place,
-  radius: number,
-  start: string,
-  end: string,
-) {
-  return matches
-    .filter((m) => inDateRange(m, start, end))
-    .map((m) => ({ ...m, distance: distanceKm(place, m) }))
-    .filter((m) => m.distance <= radius)
-    .sort((a, b) => a.kickoff.localeCompare(b.kickoff));
 }

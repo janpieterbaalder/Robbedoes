@@ -14,9 +14,9 @@ Open http://localhost:3000. Voor productie: `npm run build` gevolgd door `npm st
 
 ## Wat werkt
 
-Zoeken op GPS of plaatsnaam, datumbereik tot 31 dagen, hemelsbrede afstand tot 500 km, sorteren, ticketindicaties, wedstrijddetails, clubwebsite, Google Maps-route, agenda-export, lokale favorieten en installatie op het beginscherm. Neon-accountregistratie, inloggen en favorieten per gebruiker zijn geïmplementeerd maar vereisen onderstaande configuratie.
+Zoeken op GPS of plaatsnaam, datumbereik tot 31 dagen, hemelsbrede afstand tot 500 km, sorteren op datum of afstand, wedstrijddetails, clubwebsite, Google Maps-route, agenda-export, lokale favorieten en installatie op het beginscherm. Neon-accountregistratie, inloggen en favorieten per gebruiker zijn geïmplementeerd maar vereisen onderstaande configuratie.
 
-De app opent met actuele wedstrijden rond Rotterdam. **Bekijk voorbeeld** schakelt naar fictieve wedstrijden met ticketsterren. Er is geen stille fallback van echte wedstrijden naar voorbeelddata. Voorbeeldwedstrijden worden ook in agenda-export als voorbeeld gemarkeerd.
+De app opent met actuele wedstrijden rond Rotterdam. Er is geen voorbeeld- of testdata: alles wat de app toont, komt uit de wedstrijdbronnen.
 
 Vindt een zoekopdracht niets, dan zegt de app waarom: de eerstvolgende speeldag binnen de straal (bijvoorbeeld na een interlandperiode, met knop om daarheen te springen) of, buiten de dekking, het dichtstbijzijnde stadion dat wel gedekt is.
 
@@ -62,9 +62,9 @@ Na promoties en degradaties: `npm run check:coverage` meldt teams uit openfootba
 
 Plaatsnamen via Open-Meteo Geocoding / GeoNames. Bronnen: https://github.com/openfootball/football.json, https://api.openligadb.de, https://docs.football-data.org/general/v4/index.html, https://www.wikidata.org, https://nominatim.openstreetmap.org, https://open-meteo.com/en/docs/geocoding-api. Afstanden zijn hemelsbreed, geen rijafstanden.
 
-### Ticketsterren
+### Ticketkans
 
-Alleen de fictieve voorbeelden hebben sterren. De transparante demonstratieregel is: handmatig ingeschatte hoge vraag = 2, gemiddelde vraag = 3, lagere vraag = 4; derby = één ster minder. Dit is geen statistisch model, kanspercentage, clubcardcontrole of actuele kaartvoorraad. Echte wedstrijden tonen **Ticketkans onbekend**. Voor bruikbare live scores is geverifieerde club- of ticketinformatie nodig. De links leiden naar clubwebsites, niet naar beloofde beschikbare kaarten. Uitvakken en restricties moeten gebruikers zelf controleren.
+Er is geen betrouwbare bron voor kaartverkoop of beschikbaarheid, dus elke wedstrijd toont **Ticketkans onbekend**. De rekenregel in `lib/football.ts` (sterren op basis van verwachte vraag) wordt pas gebruikt als er geverifieerde club- of ticketinformatie is. De links leiden naar clubwebsites, niet naar beloofde beschikbare kaarten. Uitvakken en restricties moeten gebruikers zelf controleren.
 
 ## Neon-accounts activeren
 
@@ -90,4 +90,4 @@ Op iPhone: Safari → Delen → Zet op beginscherm. Op Android: browsermenu → 
 
 De Europese zoekfunctie is in de productieversie in een mobiele browser gecontroleerd met echte openfootball-gegevens: Rotterdam, Londen, Dortmund, Barcelona, Milaan en Lissabon, een lege interlandweek met de knop naar de volgende speeldag, een wedstrijd zonder aanvangstijd (weergave en agenda-export) en Brussel buiten de dekking. OpenLigaDB is gecontroleerd op de Vercel-preview: Bundesliga, 2. Bundesliga en 3. Liga laden, en over 9 t/m 18 oktober 2026 werden alle Duitse thuisteams gekoppeld. football-data.org is alleen getest met nagebootste antwoorden in het gedocumenteerde formaat.
 
-De productieversie is eerder in de browser gecontroleerd op het bewaren van een wedstrijd, openen en sluiten van details, wijzigen van de straal (50 → 25 km, zes → vijf voorbeeldresultaten), en de mobiele weergave op 390 px. Een mobiele schermafbeelding staat in `docs/mobile-preview.jpg`. In deze omgeving werkte Next.js development-hydration niet via de previewproxy; de productieversie werkte wel.
+De productieversie is eerder in de browser gecontroleerd op het bewaren van een wedstrijd, openen en sluiten van details, wijzigen van de straal, en de mobiele weergave op 390 px. Een mobiele schermafbeelding staat in `docs/mobile-preview.jpg`. In deze omgeving werkte Next.js development-hydration niet via de previewproxy; de productieversie werkte wel.

@@ -21,7 +21,6 @@ export type Match = {
   ticketUrl: string | null;
   demand: "high" | "medium" | "low" | "unknown";
   derby?: boolean;
-  demo?: boolean;
   distance?: number;
   provisional?: boolean;
   source?: string;

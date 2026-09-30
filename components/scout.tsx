@@ -24,22 +24,14 @@ import {
   Search,
   SlidersHorizontal,
   Star,
-  Ticket,
   UserRound,
   X,
   LoaderCircle,
   LogOut,
 } from "lucide-react";
 import type { Match, MatchResponse, Place } from "@/lib/types";
-import {
-  addDays,
-  localDate,
-  searchMatches,
-  ticketScore,
-  ticketReason,
-} from "@/lib/football";
+import { addDays, localDate, ticketScore, ticketReason } from "@/lib/football";
 import { COUNTRY_NAMES } from "@/lib/clubs";
-import { demoMatches } from "@/lib/demo";
 import { CUPS, LEAGUES } from "@/lib/leagues";
 import { localDateIn } from "@/lib/time";
 const ROTTERDAM: Place = {
@@ -182,14 +174,12 @@ export default function Scout({
   accountsEnabled: boolean;
 }) {
   const [ready, setReady] = useState(false),
-    [mode, setMode] = useState<"demo" | "live">("live"),
     [tab, setTab] = useState<"discover" | "saved" | "profile">("discover");
   const [place, setPlace] = useState<Place>(ROTTERDAM),
     [start, setStart] = useState(""),
     [end, setEnd] = useState(""),
     [radius, setRadius] = useState(50),
-    [sort, setSort] = useState("date"),
-    [onlyEasy, setOnlyEasy] = useState(false);
+    [sort, setSort] = useState("date");
   const [response, setResponse] = useState<MatchResponse | null>(null),
     [loading, setLoading] = useState(false),
     [error, setError] = useState(""),
@@ -266,11 +256,7 @@ export default function Scout({
       );
   }, [accountsEnabled]);
   useEffect(() => {
-    if (!ready || mode === "demo") {
-      setError("");
-      setLoading(false);
-      return;
-    }
+    if (!ready) return;
     const controller = new AbortController();
     setLoading(true);
     setError("");
@@ -297,7 +283,7 @@ export default function Scout({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [ready, mode, start, end, place, radius, retry]);
+  }, [ready, start, end, place, radius, retry]);
   useEffect(() => {
     if (query.trim().length < 2) {
       setPlaces([]);
@@ -326,21 +312,12 @@ export default function Scout({
       c.abort();
     };
   }, [query]);
-  const raw =
-    tab === "saved"
-      ? saved
-      : mode === "demo" && start
-        ? searchMatches(demoMatches(start), place, radius, start, end)
-        : response?.matches || [];
-  const matches = raw
-    .filter((m) => tab === "saved" || !onlyEasy || (ticketScore(m) || 0) >= 3)
-    .sort((a, b) =>
+  const matches = [...(tab === "saved" ? saved : response?.matches || [])].sort(
+    (a, b) =>
       sort === "distance"
         ? (a.distance ?? Infinity) - (b.distance ?? Infinity)
-        : sort === "tickets"
-          ? (ticketScore(b) || 0) - (ticketScore(a) || 0)
-          : a.kickoff.localeCompare(b.kickoff),
-    );
+        : a.kickoff.localeCompare(b.kickoff),
+  );
   const empty = (() => {
     if (tab === "saved")
       return {
@@ -348,20 +325,6 @@ export default function Scout({
         text: "Tik op het bewaarsymbool bij een wedstrijd.",
         action: "Ontdek wedstrijden",
         onClick: () => setTab("discover"),
-      };
-    if (onlyEasy && raw.length)
-      return {
-        title: "Het filter verbergt alles.",
-        text: "‘Meer ticketkans’ toont alleen wedstrijden met een ticketindicatie. Bij echte wedstrijden is die onbekend.",
-        action: "Filter uitzetten",
-        onClick: () => setOnlyEasy(false),
-      };
-    if (mode === "demo")
-      return {
-        title: "Nog geen aftrap gevonden.",
-        text: "De voorbeeldwedstrijden zijn rond Rotterdam. Kies Rotterdam of schakel over naar actuele wedstrijden.",
-        action: "Bekijk Rotterdam",
-        onClick: () => setPlace(ROTTERDAM),
       };
     const nearest = response?.nearest;
     if (nearest) {
@@ -427,7 +390,6 @@ export default function Scout({
           lon: p.coords.longitude,
         });
         setModal(null);
-        setMode("live");
         setPlaceBusy(false);
       },
       () => {
@@ -500,7 +462,7 @@ export default function Scout({
             `DTSTART:${stamp(new Date(m.kickoff))}`,
             `DTEND:${stamp(new Date(+new Date(m.kickoff) + 2 * 3600000))}`,
           ]),
-      `SUMMARY:${escape((m.demo ? "VOORBEELD: " : "") + m.home + " – " + m.away)}`,
+      `SUMMARY:${escape(m.home + " – " + m.away)}`,
       `LOCATION:${escape(m.stadium + ", " + m.city)}`,
       `DESCRIPTION:${escape((m.timeTbc ? "Aanvangstijd nog niet bekend. " : "") + "Controleer datum en aanvang bij de club.")}`,
       "END:VEVENT",
@@ -690,25 +652,9 @@ export default function Scout({
                 <>
                   <div className="modebar">
                     <div>
-                      <span
-                        className={
-                          "mode-dot " + (mode === "live" ? "live" : "")
-                        }
-                      />
-                      <span>
-                        {mode === "demo"
-                          ? "Voorbeeldmodus"
-                          : "Actuele wedstrijden"}
-                      </span>
+                      <span className="mode-dot live" />
+                      <span>Actuele wedstrijden</span>
                     </div>
-                    <button
-                      onClick={() => setMode(mode === "demo" ? "live" : "demo")}
-                    >
-                      {mode === "demo"
-                        ? "Zoek echte wedstrijden"
-                        : "Bekijk voorbeeld"}
-                      <ArrowRight size={14} />
-                    </button>
                   </div>
                   <section
                     className="search-panel"
@@ -764,13 +710,6 @@ export default function Scout({
                   </section>
                   <div className="quick-filters">
                     <button
-                      className={onlyEasy ? "chip active" : "chip"}
-                      onClick={() => setOnlyEasy(!onlyEasy)}
-                    >
-                      <Ticket size={15} />
-                      Meer ticketkans {onlyEasy && <Check size={14} />}
-                    </button>
-                    <button
                       className="chip"
                       onClick={() => setModal("filters")}
                     >
@@ -780,7 +719,7 @@ export default function Scout({
                     <button
                       className="help-icon"
                       onClick={() => setModal("info")}
-                      aria-label="Uitleg ticketsterren"
+                      aria-label="Goed om te weten"
                     >
                       <Info size={18} />
                     </button>
@@ -803,23 +742,14 @@ export default function Scout({
                   >
                     <option value="date">Datum</option>
                     <option value="distance">Afstand</option>
-                    <option value="tickets">Ticketkans</option>
                   </select>
                 </label>
               </div>
-              {mode === "demo" && tab === "discover" && (
-                <p className="demo-note">
-                  Fictieve wedstrijden om de app te verkennen.
+              {tab === "discover" && !loading && response?.warning && (
+                <p className="demo-note" role="status">
+                  {response.warning}
                 </p>
               )}
-              {mode === "live" &&
-                tab === "discover" &&
-                !loading &&
-                response?.warning && (
-                  <p className="demo-note" role="status">
-                    {response.warning}
-                  </p>
-                )}
               {loading && tab === "discover" ? (
                 <div className="loading" role="status">
                   <LoaderCircle className="spin" />
@@ -882,7 +812,6 @@ export default function Scout({
                           <span className="league">
                             {heart && <span className="tiny-stripe" />}
                             {m.league}
-                            {m.demo ? " · voorbeeld" : ""}
                           </span>
                           <span className="match-date">
                             {day}
@@ -973,11 +902,9 @@ export default function Scout({
                 <div className="data-note">
                   <Info size={15} />
                   <p>
-                    {mode === "demo"
-                      ? "Voorbeelden, geen speelschema. Ticketsterren zijn schattingen, geen garantie."
-                      : response?.source
-                        ? `Bronnen: ${response.source}. Doorzocht: ${response.coverage}.${response.missingVenues ? ` ${response.missingVenues} wedstrijden zonder bekende stadionlocatie overgeslagen.` : ""}`
-                        : `Dekking: ${COVERAGE_SHORT}.`}
+                    {response?.source
+                      ? `Bronnen: ${response.source}. Doorzocht: ${response.coverage}.${response.missingVenues ? ` ${response.missingVenues} wedstrijden zonder bekende stadionlocatie overgeslagen.` : ""}`
+                      : `Dekking: ${COVERAGE_SHORT}.`}
                     <br />
                     Afstanden zijn hemelsbreed. Tijden zijn lokaal bij het
                     stadion.
@@ -1217,20 +1144,8 @@ export default function Scout({
               </button>
             ))}
           </div>
-          <label className="toggle-row">
-            <span>
-              Meer kans op tickets
-              <small>Alleen indicaties vanaf 3 sterren</small>
-            </span>
-            <input
-              type="checkbox"
-              checked={onlyEasy}
-              onChange={(e) => setOnlyEasy(e.target.checked)}
-            />
-          </label>
           <p className="small-copy">
-            Wedstrijden met onbekende ticketkans vallen buiten dit filter. De
-            straal is hemelsbreed, niet de reisafstand.
+            De straal is hemelsbreed, niet de reisafstand.
           </p>
           <button className="primary full" onClick={() => setModal(null)}>
             Toepassen
@@ -1241,18 +1156,12 @@ export default function Scout({
       {modal === "info" && (
         <Modal title="Goed om te weten" onClose={() => setModal(null)}>
           <div className="explanation">
-            <h3>Wat betekenen de sterren?</h3>
+            <h3>Ticketkans</h3>
             <p>
-              Een voorzichtige indicatie, geen actuele kaartvoorraad. In de
-              voorbeeldmodus levert lagere verwachte vraag 4 sterren op,
-              gemiddelde vraag 3 en hoge vraag 2. Een derby verlaagt de score
-              met één ster. Deze rekenregel is door ons opgesteld, niet
-              gebaseerd op gemeten verkoopkansen.
-            </p>
-            <p>
-              Bij echte wedstrijden blijft de score onbekend totdat er
-              betrouwbare informatie is. Controleer altijd vrije verkoop,
-              clubcards, uitvakken en aanvangstijden bij de club.
+              Over de kaartverkoop is geen betrouwbare informatie beschikbaar;
+              daarom staat bij elke wedstrijd ‘Ticketkans onbekend’. Controleer
+              altijd vrije verkoop, clubcards, uitvakken en aanvangstijden bij
+              de club.
             </p>
             <h3>Welke wedstrijden vind je?</h3>
             <p>
@@ -1292,10 +1201,7 @@ export default function Scout({
       {selected && (
         <Modal title="Een plek op de tribune" onClose={() => setSelected(null)}>
           <div className="detail-match">
-            <span className="eyebrow">
-              {selected.demo ? "FICTIEF VOORBEELD · " : ""}
-              {selected.league}
-            </span>
+            <span className="eyebrow">{selected.league}</span>
             <h2>
               {selected.home}
               <span>tegen</span>
