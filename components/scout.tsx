@@ -39,6 +39,8 @@ import {
   ticketReason,
 } from "@/lib/football";
 import { demoMatches } from "@/lib/demo";
+import { LEAGUES } from "@/lib/leagues";
+import { localDateIn } from "@/lib/time";
 const ROTTERDAM: Place = {
   name: "Rotterdam, Nederland",
   lat: 51.9244,
@@ -46,14 +48,25 @@ const ROTTERDAM: Place = {
 };
 const PRESETS: Place[] = [
   ROTTERDAM,
+  { name: "Londen, Verenigd Koninkrijk", lat: 51.5072, lon: -0.1276 },
   { name: "Dortmund, Duitsland", lat: 51.5136, lon: 7.4653 },
   { name: "Barcelona, Spanje", lat: 41.3874, lon: 2.1686 },
-  { name: "Londen, Verenigd Koninkrijk", lat: 51.5072, lon: -0.1276 },
+  { name: "Milaan, Italië", lat: 45.4642, lon: 9.19 },
+  { name: "Lissabon, Portugal", lat: 38.7223, lon: -9.1393 },
 ];
+const COVERAGE = new Intl.ListFormat("nl", { type: "conjunction" }).format(
+  LEAGUES.map((l) => l.name),
+);
 const dateLabel = (s: string) =>
   new Date(s + "T12:00:00").toLocaleDateString("nl-NL", {
     day: "numeric",
     month: "short",
+  });
+const longDateLabel = (s: string) =>
+  new Date(s + "T12:00:00").toLocaleDateString("nl-NL", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
   });
 const safeUrl = (url: string | null) => {
   try {
@@ -72,8 +85,12 @@ function Crest({ name, color }: { name: string; color?: string }) {
     >
       <span>
         {name
-          .replace(/^(FC|SC|SV|1\.)\s/, "")
+          .replace(
+            /^((FC|SC|SV|AC|AS|US|SS|SSC|RC|RCD|CD|VfL|VfB|TSG|1\.)\s+)+/,
+            "",
+          )
           .split(" ")
+          .filter((s) => /^\p{L}/u.test(s))
           .map((s) => s[0])
           .join("")
           .slice(0, 3)
@@ -154,7 +171,7 @@ export default function Scout({
   accountsEnabled: boolean;
 }) {
   const [ready, setReady] = useState(false),
-    [mode, setMode] = useState<"demo" | "live">("demo"),
+    [mode, setMode] = useState<"demo" | "live">("live"),
     [tab, setTab] = useState<"discover" | "saved" | "profile">("discover");
   const [place, setPlace] = useState<Place>(ROTTERDAM),
     [start, setStart] = useState(""),
@@ -247,11 +264,12 @@ export default function Scout({
     setLoading(true);
     setError("");
     setResponse(null);
+    // Two decimals (about 1 km) is plenty for a radius search and keeps GPS positions coarse.
     const params = new URLSearchParams({
       start,
       end,
-      lat: String(place.lat),
-      lon: String(place.lon),
+      lat: place.lat.toFixed(2),
+      lon: place.lon.toFixed(2),
       radius: String(radius),
     });
     fetch("/api/matches?" + params, { signal: controller.signal })
@@ -312,6 +330,59 @@ export default function Scout({
           ? (ticketScore(b) || 0) - (ticketScore(a) || 0)
           : a.kickoff.localeCompare(b.kickoff),
     );
+  const empty = (() => {
+    if (tab === "saved")
+      return {
+        title: "Je volgende avontuur begint hier.",
+        text: "Tik op het bewaarsymbool bij een wedstrijd.",
+        action: "Ontdek wedstrijden",
+        onClick: () => setTab("discover"),
+      };
+    if (onlyEasy && raw.length)
+      return {
+        title: "Het filter verbergt alles.",
+        text: "‘Meer ticketkans’ toont alleen wedstrijden met een ticketindicatie. Bij echte wedstrijden is die onbekend.",
+        action: "Filter uitzetten",
+        onClick: () => setOnlyEasy(false),
+      };
+    if (mode === "demo")
+      return {
+        title: "Nog geen aftrap gevonden.",
+        text: "De voorbeeldwedstrijden zijn rond Rotterdam. Kies Rotterdam of schakel over naar actuele wedstrijden.",
+        action: "Bekijk Rotterdam",
+        onClick: () => setPlace(ROTTERDAM),
+      };
+    const nearest = response?.nearest;
+    if (nearest) {
+      const reachable = nearest.distance <= 500;
+      const target = Math.min(500, Math.ceil(nearest.distance / 25) * 25);
+      return {
+        title: "Hier nog geen competitie in beeld.",
+        text: `Binnen ${radius} km ligt geen stadion uit onze dekking. Het dichtstbijzijnde is ${nearest.club} (${nearest.city}) op ${nearest.distance} km.`,
+        action: reachable
+          ? `Zoek binnen ${target} km`
+          : "Kies een andere plaats",
+        onClick: () => (reachable ? setRadius(target) : setModal("place")),
+      };
+    }
+    const next = response?.nextDate;
+    if (next)
+      return {
+        title: "Nog geen aftrap gevonden.",
+        text: `Binnen ${radius} km wordt in deze periode niet gespeeld, bijvoorbeeld door een interlandperiode. De eerstvolgende speeldag in de buurt is ${longDateLabel(next)}.`,
+        action: `Toon vanaf ${dateLabel(next)}`,
+        onClick: () => {
+          setStart(next);
+          setEnd(addDays(next, 6));
+        },
+      };
+    return {
+      title: "Nog geen aftrap gevonden.",
+      text: "Vergroot je straal of kies andere datums. Geen resultaten betekent niet dat er nergens wordt gevoetbald; de bronnen dekken niet elke competitie.",
+      action: "Pas je zoekopdracht aan",
+      onClick: () => setModal("filters"),
+    };
+  })();
   async function save(m: Match) {
     const exists = saved.some((s) => s.id === m.id);
     if (user) {
@@ -400,6 +471,8 @@ export default function Scout({
         .replace(/\n/g, "\\n")
         .replace(/,/g, "\\,")
         .replace(/;/g, "\\;");
+    // Without a fixed kick-off the match becomes an all-day event on the local match day.
+    const day = localDateIn(m.kickoff, m.timezone);
     const data = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
@@ -407,11 +480,18 @@ export default function Scout({
       "BEGIN:VEVENT",
       `UID:${m.id}@robbedoes`,
       `DTSTAMP:${stamp(new Date())}`,
-      `DTSTART:${stamp(new Date(m.kickoff))}`,
-      `DTEND:${stamp(new Date(+new Date(m.kickoff) + 2 * 3600000))}`,
+      ...(m.timeTbc
+        ? [
+            `DTSTART;VALUE=DATE:${day.replace(/-/g, "")}`,
+            `DTEND;VALUE=DATE:${addDays(day, 1).replace(/-/g, "")}`,
+          ]
+        : [
+            `DTSTART:${stamp(new Date(m.kickoff))}`,
+            `DTEND:${stamp(new Date(+new Date(m.kickoff) + 2 * 3600000))}`,
+          ]),
       `SUMMARY:${escape((m.demo ? "VOORBEELD: " : "") + m.home + " – " + m.away)}`,
       `LOCATION:${escape(m.stadium + ", " + m.city)}`,
-      "DESCRIPTION:Controleer datum en aanvang bij de club.",
+      `DESCRIPTION:${escape((m.timeTbc ? "Aanvangstijd nog niet bekend. " : "") + "Controleer datum en aanvang bij de club.")}`,
       "END:VEVENT",
       "END:VCALENDAR",
     ].join("\r\n");
@@ -721,6 +801,14 @@ export default function Scout({
                   Fictieve wedstrijden om de app te verkennen.
                 </p>
               )}
+              {mode === "live" &&
+                tab === "discover" &&
+                !loading &&
+                response?.warning && (
+                  <p className="demo-note" role="status">
+                    {response.warning}
+                  </p>
+                )}
               {loading && tab === "discover" ? (
                 <div className="loading" role="status">
                   <LoaderCircle className="spin" />
@@ -743,31 +831,10 @@ export default function Scout({
               ) : matches.length === 0 ? (
                 <div className="empty">
                   <Compass size={36} />
-                  <h3>
-                    {tab === "saved"
-                      ? "Je volgende avontuur begint hier."
-                      : "Nog geen aftrap gevonden."}
-                  </h3>
-                  <p>
-                    {tab === "saved"
-                      ? "Tik op het bewaarsymbool bij een wedstrijd."
-                      : mode === "demo"
-                        ? "De voorbeeldwedstrijden zijn rond Rotterdam. Kies Rotterdam of schakel over naar actuele wedstrijden."
-                        : "Vergroot je straal of kies andere datums. Geen resultaten betekent niet dat er nergens wordt gevoetbald; de bron heeft beperkte dekking."}
-                  </p>
-                  <button
-                    className="primary"
-                    onClick={() => {
-                      if (tab === "saved") setTab("discover");
-                      else if (mode === "demo") setPlace(ROTTERDAM);
-                      else setModal("filters");
-                    }}
-                  >
-                    {tab === "saved"
-                      ? "Ontdek wedstrijden"
-                      : mode === "demo"
-                        ? "Bekijk Rotterdam"
-                        : "Pas je zoekopdracht aan"}
+                  <h3>{empty.title}</h3>
+                  <p>{empty.text}</p>
+                  <button className="primary" onClick={empty.onClick}>
+                    {empty.action}
                     <ArrowRight size={17} />
                   </button>
                 </div>
@@ -785,28 +852,24 @@ export default function Scout({
                         timeZone: m.timezone,
                       },
                     );
-                    const time = new Date(m.kickoff).toLocaleTimeString(
-                      "nl-NL",
-                      {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        timeZone: m.timezone,
-                      },
-                    );
+                    const time = m.timeTbc
+                      ? "tijd volgt"
+                      : new Date(m.kickoff).toLocaleTimeString("nl-NL", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          timeZone: m.timezone,
+                        });
+                    const heart =
+                      m.homeId === "feyenoord" || m.home === "Feyenoord";
                     return (
                       <article
-                        className={
-                          "match-card " +
-                          (m.home === "Feyenoord" ? "home-heart" : "")
-                        }
+                        className={"match-card " + (heart ? "home-heart" : "")}
                         key={m.id}
                         style={{ animationDelay: `${i * 45}ms` }}
                       >
                         <div className="card-top">
                           <span className="league">
-                            {m.home === "Feyenoord" && (
-                              <span className="tiny-stripe" />
-                            )}
+                            {heart && <span className="tiny-stripe" />}
                             {m.league}
                             {m.demo ? " · voorbeeld" : ""}
                           </span>
@@ -825,12 +888,12 @@ export default function Scout({
                             <div className="team-line">
                               <Crest name={m.home} color={m.color} />
                               <h3>{m.home}</h3>
-                              {m.home === "Feyenoord" && (
+                              {heart && (
                                 <span className="heart-label">1908</span>
                               )}
                             </div>
                             <div className="team-line">
-                              <Crest name={m.away} />
+                              <Crest name={m.away} color={m.awayColor} />
                               <h3>{m.away}</h3>
                             </div>
                           </button>
@@ -901,9 +964,9 @@ export default function Scout({
                   <p>
                     {mode === "demo"
                       ? "Voorbeelden, geen speelschema. Ticketsterren zijn schattingen, geen garantie."
-                      : response
-                        ? `${response.source} · ${response.coverage}${response.missingVenues ? ` ${response.missingVenues} wedstrijden zonder bekende stadionlocatie overgeslagen.` : ""}`
-                        : "Dekking zonder extra koppeling: Duitse Bundesliga."}
+                      : response?.source
+                        ? `Bronnen: ${response.source}. Doorzocht: ${response.coverage}.${response.missingVenues ? ` ${response.missingVenues} wedstrijden zonder bekende stadionlocatie overgeslagen.` : ""}`
+                        : `Dekking: ${COVERAGE}.`}
                     <br />
                     Afstanden zijn hemelsbreed. Tijden zijn lokaal bij het
                     stadion.
@@ -1182,18 +1245,25 @@ export default function Scout({
             </p>
             <h3>Welke wedstrijden vind je?</h3>
             <p>
-              Zonder aanvullende gegevenskoppeling: de Duitse Bundesliga via
-              OpenLigaDB. Met football-data.org hangt de dekking af van het
-              abonnement en de beschikbare stadionlocaties. De app is dus geen
-              volledige wereldwijde wedstrijdkalender.
+              Competities in Nederland, Duitsland, Engeland en Wales, Spanje,
+              Italië, Frankrijk en Portugal: {COVERAGE}. De speelschema’s komen
+              van openfootball (openbaar, dagelijks bijgewerkt) en voor
+              Duitsland van OpenLigaDB. Met een football-data.org-sleutel komt
+              de Champions League erbij.
+            </p>
+            <p>
+              Andere landen, zoals België, en de meeste lagere divisies zitten
+              er nog niet in. Staat een aftraptijd er nog niet bij, dan heeft de
+              competitie hem nog niet vastgesteld.
             </p>
             <h3>Jouw gegevens</h3>
             <p>
-              Locatietoegang is vrijwillig. Coördinaten worden voor je
-              zoekopdracht naar de appserver gestuurd, niet als
-              locatiegeschiedenis opgeslagen. Plaatszoekopdrachten gaan naar
-              Open-Meteo. Zonder account staan favorieten alleen in deze
-              browser; met account in je beveiligde accountopslag.
+              Locatietoegang is vrijwillig. Coördinaten worden afgerond op
+              ongeveer een kilometer voor je zoekopdracht naar de appserver
+              gestuurd, niet als locatiegeschiedenis opgeslagen.
+              Plaatszoekopdrachten gaan naar Open-Meteo. Zonder account staan
+              favorieten alleen in deze browser; met account in je beveiligde
+              accountopslag.
             </p>
             <h3>Op je beginscherm</h3>
             <p>
@@ -1221,11 +1291,15 @@ export default function Scout({
                 weekday: "long",
                 day: "numeric",
                 month: "long",
-                hour: "2-digit",
-                minute: "2-digit",
+                ...(selected.timeTbc
+                  ? {}
+                  : { hour: "2-digit", minute: "2-digit" }),
                 timeZone: selected.timezone,
               })}{" "}
-              · lokale tijd
+              ·{" "}
+              {selected.timeTbc
+                ? "aanvangstijd nog niet bekend"
+                : "lokale tijd"}
             </p>
           </div>
           <div className="detail-venue">
@@ -1249,8 +1323,8 @@ export default function Scout({
           </div>
           {selected.provisional && (
             <p className="small-copy">
-              Planning uit de gegevensbron; datum en aftraptijd kunnen nog
-              wijzigen.
+              Planning volgens {selected.source ?? "de gegevensbron"}; datum en
+              aftraptijd kunnen nog wijzigen.
             </p>
           )}
           {safeUrl(selected.ticketUrl) ? (
@@ -1264,7 +1338,15 @@ export default function Scout({
               <ExternalLink size={17} />
             </a>
           ) : (
-            <p>Geen officiële clubwebsite gekoppeld.</p>
+            <a
+              className="primary full"
+              href={`https://www.google.com/search?q=${encodeURIComponent(`${selected.home} officiële website tickets`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Zoek de clubwebsite
+              <ExternalLink size={17} />
+            </a>
           )}
           <p className="small-copy centered">
             Controleer tickets en verkoopvoorwaarden bij de club.
